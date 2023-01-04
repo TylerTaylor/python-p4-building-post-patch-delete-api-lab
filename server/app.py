@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from flask import Flask, make_response, jsonify
+from flask import Flask, make_response, jsonify, request
 from flask_migrate import Migrate
 
 from models import db, Bakery, BakedGood
@@ -30,17 +30,64 @@ def bakeries():
     )
     return response
 
-@app.route('/bakeries/<int:id>')
+@app.route('/bakeries/<int:id>', methods=['GET', 'PATCH'])
 def bakery_by_id(id):
-
     bakery = Bakery.query.filter_by(id=id).first()
-    bakery_serialized = bakery.to_dict()
 
-    response = make_response(
-        bakery_serialized,
-        200
+    if request.method == 'GET':
+        bakery_serialized = bakery.to_dict()
+
+        response = make_response(
+            bakery_serialized,
+            200
+        )
+        return response
+    
+    elif request.method == 'PATCH':
+        # bakery = Bakery.query.filter_by(id = id).first()
+
+        for attr in request.form:
+            # We use setattr() here because it allows us to use variable names as attribute names
+            setattr(bakery, attr, request.form.get(attr))
+
+        db.session.add(bakery)
+        db.session.commit()
+
+        return make_response(bakery.to_dict(), 200)
+
+@app.route('/baked_goods', methods=['POST'])
+def baked_goods():
+    # create object from form data
+    new_bg = BakedGood(
+        name = request.form.get("name"),
+        price = request.form.get("price"),
+        bakery_id = request.form.get("bakery_id")
     )
+
+    # persist that object
+    db.session.add(new_bg)
+    db.session.commit()
+
+    # convert object to JSON for response
+    new_bg_dict = new_bg.to_dict()
+
+    # make and send response
+    response = make_response(new_bg_dict, 201)
     return response
+
+@app.route('/baked_goods/<int:id>', methods=['DELETE'])
+def baked_goods_by_id(id):
+    baked_good = BakedGood.query.filter_by(id = id).first()
+
+    db.session.delete(baked_good)
+    db.session.commit()
+
+    response_body = {
+        "delete_successful": True,
+        "message": "Baked good deleted"
+    }
+
+    return make_response(response_body, 200)
 
 @app.route('/baked_goods/by_price')
 def baked_goods_by_price():
